@@ -5,19 +5,18 @@
 #include <iostream>
 #include <cmath>
 
-using namespace cv;
-using namespace std;
+const std::string img_directory = "data/img/";
 
-int main( int argc, char** argv ) {
+int main (int argc, const char* argv[]) {
     if (argc != 2) {
-        std::cerr << "usage: " << argv[0] << " lidarData.xml" << std::endl;
-        return EXIT_FAILURE;
+        std::cerr << "Usage: " << argv[0] << " lidarData.xml" << std::endl;
+        return 0;
     }
 
     //  Read lidar data from a file
-    Mat lidar_data;
-    string filename(argv[1]);
-    FileStorage fs(filename, FileStorage::READ);
+    cv::Mat lidar_data;
+    std::string filename(argv[1]);
+    cv::FileStorage fs(filename, cv::FileStorage::READ);
     fs["lidarData"]>> lidar_data;
     int nb_impacts = lidar_data.cols;
     int nb_frames = lidar_data.rows;
@@ -46,21 +45,19 @@ int main( int argc, char** argv ) {
 
     char key = 'a';
     int frame_nb = 0;
-    while (key != 'q' && frame_nb != nb_frames)
-    {
+    while (key != 'q' && frame_nb != nb_frames) {
         //  Allocation/initialization of the grid
-        Mat grid = Mat::zeros(Size(nb_cells_x, nb_cells_y), CV_32F);
+        cv:: Mat grid = cv::Mat::zeros(cv::Size(nb_cells_x, nb_cells_y), CV_32F);
 
         //  Read the stereo image
-        ostringstream filename;
-        filename<<"data/img/left_img_"<<frame_nb<<".png";
-        Mat left_img = imread(filename.str(), 0);
-        Mat left_display_img;
-        cvtColor(left_img, left_display_img, CV_GRAY2RGB);
+        std::ostringstream filename;
+        filename<< img_directory << "left_img_"<<frame_nb<<".png";
+        cv::Mat left_img = cv::imread(filename.str(), 0);
+        cv::Mat left_display_img;
+        cv::cvtColor(left_img, left_display_img, CV_GRAY2RGB);
 
         //  Process all the lidar impacts
-        for (int i=0; i<nb_impacts/2; ++i)
-        {
+        for (int i=0; i<nb_impacts/2; ++i) {
             double x=lidar_data.at<double>(frame_nb, 2*i);
             double y=lidar_data.at<double>(frame_nb, 2*i+1);
 
@@ -69,13 +66,11 @@ int main( int argc, char** argv ) {
                 grid.at<float>((y_max-(y-y_min))/y_step, (x-x_min)/x_step) = 1.0;
 
             //  display on stereo image
-            if (y>0)
-            {
+            if (y>0) {
                 double z=camera_height -(lidar_height + sqrt(x*x+y*y)*sin(lidar_pitch_angle));
                 int u=(int)uo+alpha_u*(x/(y+camera_ty));
                 int v=(int)vo+alpha_v*(z/(y+camera_ty));
-                if (u>0 && u<left_img.cols && v>0 && v<left_img.rows)
-                {
+                if (u>0 && u<left_img.cols && v>0 && v<left_img.rows) {
                     left_display_img.at<unsigned char>(v, 3*u) = 0;
                     left_display_img.at<unsigned char>(v, 3*u+1) = 0;
                     left_display_img.at<unsigned char>(v, 3*u+2) = 255;
@@ -83,21 +78,21 @@ int main( int argc, char** argv ) {
             }
         }
 
-        //   prepare the display of the grid
-        Mat display_grid; //  to have a RGB grid for display
+        // prepare the display of the grid
+        cv::Mat display_grid; //  to have a RGB grid for display
         grid.convertTo(display_grid, CV_8U, 255);
-        cvtColor(display_grid, display_grid, CV_GRAY2RGB);
+        cv::cvtColor(display_grid, display_grid, CV_GRAY2RGB);
 
-        Mat display_grid_large;// to have a large grid for display
-        resize(display_grid, display_grid_large, Size(600,600));
+        cv::Mat display_grid_large;// to have a large grid for display
+        cv::resize(display_grid, display_grid_large, cv::Size(600,600));
 
         //  show images
-        imshow("top view",  display_grid_large);
-        imshow("left image", left_display_img);
+        cv::imshow("top view",  display_grid_large);
+        cv::imshow("left image", left_display_img);
 
         //  Wait for the user to press a key
         frame_nb++;
-        key = waitKey( );
+        key = cv::waitKey();
     }
 
     return 0;

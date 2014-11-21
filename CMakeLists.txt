@@ -57,7 +57,7 @@ TARGET_LINK_LIBRARIES(lidar
 # run
 # stereo
 ADD_CUSTOM_TARGET(run_stereo
-    COMMAND stereo data/img_stereo/left_250.png
+    COMMAND stereo 250
     DEPENDS stereo
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
 )
