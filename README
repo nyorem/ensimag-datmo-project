@@ -1,0 +1,7 @@
+Building: mkdir build && cmake .. && make
+
+Run:
+
+- stereo vision: cd build && make run_stereo
+- lidar: cd build && make run_lidar
+
