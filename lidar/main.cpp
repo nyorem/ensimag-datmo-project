@@ -45,6 +45,9 @@ int main (int argc, const char* argv[]) {
 
     char key = 'a';
     int frame_nb = 0;
+
+    cv::Vec2f mean_bicycle;
+    int bicycle_impacts = 0;
     while (key != 'q' && frame_nb != nb_frames) {
         //  Allocation/initialization of the grid
         cv:: Mat grid = cv::Mat::zeros(cv::Size(nb_cells_x, nb_cells_y), CV_32F);
@@ -65,6 +68,13 @@ int main (int argc, const char* argv[]) {
             if (x>x_min && x<x_max && y>y_min && y<y_max && y>0)
                 grid.at<float>((y_max-(y-y_min))/y_step, (x-x_min)/x_step) = 1.0;
 
+            if (frame_nb == 0) {
+                if (x > 4 && x < 7.5 && y > 9 && y < 11) {
+                    mean_bicycle += cv::Vec2f(x, y);
+                    bicycle_impacts++;
+                }
+            }
+
             //  display on stereo image
             if (y>0) {
                 double z=camera_height -(lidar_height + sqrt(x*x+y*y)*sin(lidar_pitch_angle));
@@ -76,6 +86,12 @@ int main (int argc, const char* argv[]) {
                     left_display_img.at<unsigned char>(v, 3*u+2) = 255;
                 }
             }
+        }
+
+        // Bicycle
+        if (frame_nb == 0) {
+            mean_bicycle /= bicycle_impacts;
+            std::cout << mean_bicycle << std::endl;
         }
 
         // prepare the display of the grid
