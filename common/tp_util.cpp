@@ -37,7 +37,7 @@ void fitLineRansac(const std::vector<Point2f> points,
         dp *= 1./norm(dp);
         double score = 0;
 
-        if(fabs(dp.x>1.e-5) && fabs(dp.y/dp.x)<=a_max)
+        if(fabs(dp.x)>1.e-5 && fabs(dp.y/dp.x)<=a_max)
         {
             for(int i=0; i<n; i++)
             {
@@ -83,8 +83,8 @@ unsigned int segmentDisparity(const Mat &disparity, Mat &output)
                              Point(j, i),
                              Scalar(1),
                              NULL,
-                             cvScalarAll(0),
-                             cvScalarAll(0),
+                             cvScalarAll(10),
+                             cvScalarAll(10),
                              8+FLOODFILL_FIXED_RANGE+FLOODFILL_MASK_ONLY)>0)
                 {
                     mask2.convertTo(tmp2, CV_32SC1, k);

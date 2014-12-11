@@ -58,6 +58,8 @@
 # Since not all version of OpenCV set OpenCV_INCLUDE_DIRS. Problem detected with OpenCV 2.0 OpenCVConfig.cmake 
 # directly calls INCLUDE_DIRECTORIES() and does not propagate any OpenCV_INCLUDE_ variable
 
+
+set(OpenCV_DIR "C:\\Users\\Alexandre\\Developpement\\libs\\opencv\\build")
 # let's skip module mode, and see if a OpenCVConfig.cmake file is around
 # this searches in system directories and ${OpenCV_DIR}
 find_package(OpenCV QUIET NO_MODULE)
