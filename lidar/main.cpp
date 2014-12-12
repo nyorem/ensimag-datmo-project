@@ -5,7 +5,33 @@
 #include <iostream>
 #include <cmath>
 
+#define drawCross( center, color, d )                                 \
+    cv::line(display_grid_large, cv::Point( center.x - d, center.y - d ), cv::Point( center.x + d, center.y + d ), color, 2, CV_AA, 0); \
+    cv::line(display_grid_large, cv::Point( center.x + d, center.y - d ), cv::Point( center.x - d, center.y + d ), color, 2, CV_AA, 0 )
+
 const std::string img_directory = "data/img/";
+
+cv::Point2f centerBox (float x_min, float x_max,
+                       float y_min, float y_max) {
+    cv::Point2f center;
+
+    center.x = (x_min + x_max) / 2;
+    center.y = (y_min + y_max) / 2;
+
+    return center;
+}
+
+cv::Point2f toGrid (cv::Point2f const& pt,
+                    float x_min, float y_min,
+                    float x_max, float y_max,
+                    float x_step, float y_step) {
+    cv::Point2f newPt;
+
+    newPt.x = y_max - (pt.y-y_min) / y_step;
+    newPt.y = (pt.x-x_min) / x_step;
+
+    return newPt;
+}
 
 int main (int argc, const char* argv[]) {
     if (argc != 2) {
@@ -46,8 +72,32 @@ int main (int argc, const char* argv[]) {
     char key = 'a';
     int frame_nb = 0;
 
-    cv::Vec2f mean_bicycle;
-    int bicycle_impacts = 0;
+    // Kalman filter
+    float dt = 0.5;
+    cv::KalmanFilter kalman(4, 2, 0);
+    kalman.transitionMatrix = (cv::Mat_<float>(4, 4) << 1 , 0 , dt , 0
+                                                      , 0 , 1 , 0 , dt
+                                                      , 0 , 0 , 1 , 0
+                                                      , 0 , 0 , 0 , 1);
+    kalman.measurementMatrix = (cv::Mat_<float>(2, 4) << 1 , 0, 0, 0
+                                                      , 0 , 1, 0, 0);
+    cv::setIdentity(kalman.processNoiseCov, cv::Scalar::all(1e-5));
+    cv::setIdentity(kalman.measurementNoiseCov, cv::Scalar::all(1e-1));
+    cv::setIdentity(kalman.errorCovPost, cv::Scalar::all(0.1));
+
+    // Initial ROI
+    float x_roi_min = 4,
+          x_roi_max = 7.5,
+          y_roi_min = 9,
+          y_roi_max = 11;
+
+    // Kalman
+    cv::Point2f predicted = cv::Vec2f(0, 0);
+    cv::Vec2f speed = cv::Vec2f(0, 0);
+    cv::Mat_<float> observed(2, 1);
+    observed.setTo(cv::Scalar(0));
+    int observed_impacts = 0;
+
     while (key != 'q' && frame_nb != nb_frames) {
         //  Allocation/initialization of the grid
         cv:: Mat grid = cv::Mat::zeros(cv::Size(nb_cells_x, nb_cells_y), CV_32F);
@@ -59,7 +109,26 @@ int main (int argc, const char* argv[]) {
         cv::Mat left_display_img;
         cv::cvtColor(left_img, left_display_img, CV_GRAY2RGB);
 
-        //  Process all the lidar impacts
+        observed_impacts = 0;
+        observed.setTo(cv::Scalar(0));
+
+        // Prediction
+        if (frame_nb != 0) {
+            cv::Mat prediction = kalman.predict();
+            predicted = cv::Point2f(prediction.at<float>(0),
+                                    prediction.at<float>(1));
+            /* speed = cv::Vec2f(prediction.at<float>(2), */
+            /*                   prediction.at<float>(3)); */
+            cv::Point2f center = centerBox(x_roi_min, x_roi_max,
+                                           y_roi_min, y_roi_max);
+            cv::Vec2f newCenter = predicted - center;
+            x_roi_min += newCenter[0];
+            y_roi_min += newCenter[1];
+            x_roi_max += newCenter[0];
+            y_roi_max += newCenter[1];
+        }
+
+        //  Process all the lidar impacts and compute the observed position
         for (int i=0; i<nb_impacts/2; ++i) {
             double x=lidar_data.at<double>(frame_nb, 2*i);
             double y=lidar_data.at<double>(frame_nb, 2*i+1);
@@ -68,11 +137,12 @@ int main (int argc, const char* argv[]) {
             if (x>x_min && x<x_max && y>y_min && y<y_max && y>0)
                 grid.at<float>((y_max-(y-y_min))/y_step, (x-x_min)/x_step) = 1.0;
 
-            if (frame_nb == 0) {
-                if (x > 4 && x < 7.5 && y > 9 && y < 11) {
-                    mean_bicycle += cv::Vec2f(x, y);
-                    bicycle_impacts++;
-                }
+
+            // Observation
+            if (x > x_roi_min && x < x_roi_max && y > y_roi_min && y < y_roi_max) {
+                observed(0) += x;
+                observed(1) += y;
+                observed_impacts++;
             }
 
             //  display on stereo image
@@ -88,11 +158,19 @@ int main (int argc, const char* argv[]) {
             }
         }
 
-        // Bicycle
+        // Initial prediction
         if (frame_nb == 0) {
-            mean_bicycle /= bicycle_impacts;
-            std::cout << mean_bicycle << std::endl;
+            kalman.statePre.at<float>(0) = observed(0);
+            kalman.statePre.at<float>(1) = observed(1);
+            kalman.statePre.at<float>(2) = 0;
+            kalman.statePre.at<float>(3) = 0;
         }
+
+        // Correction
+        cv::Mat corrected = kalman.correct(observed);
+        observed /= observed_impacts;
+        std::cout << "pre: " << predicted << std::endl;
+        std::cout << "obs: " << observed << std::endl;
 
         // prepare the display of the grid
         cv::Mat display_grid; //  to have a RGB grid for display
@@ -101,6 +179,14 @@ int main (int argc, const char* argv[]) {
 
         cv::Mat display_grid_large;// to have a large grid for display
         cv::resize(display_grid, display_grid_large, cv::Size(600,600));
+
+        // show prediction / observation
+        drawCross(toGrid(cv::Point2f(observed(0), observed(1)),
+                         x_min, y_min, x_max, y_max,
+                         x_step, y_step), cv::Scalar(255, 0, 0), 5);
+        drawCross(toGrid(predicted,
+                         x_min, y_min, x_max, y_max,
+                         x_step, y_step), cv::Scalar(0, 255, 0), 5);
 
         //  show images
         cv::imshow("top view",  display_grid_large);
@@ -113,5 +199,4 @@ int main (int argc, const char* argv[]) {
 
     return 0;
 }
-
 

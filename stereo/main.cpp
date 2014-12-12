@@ -172,7 +172,6 @@ int main(int argc, char **argv) {
 	cv::Mat display_v_disparity_map;
 	v_disparity_map.convertTo(display_v_disparity_map, CV_8U);
 	cv::imshow("V-disparity", display_v_disparity_map);
-	cv::imwrite("out.png", display_v_disparity_map);
 	
     // TODO: compute theta and Z0
 
