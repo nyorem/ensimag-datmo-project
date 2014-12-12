@@ -46,6 +46,12 @@ cv::Mat v_disparity (cv::Mat const& disp,
     return v_disparity_map;
 }
 
+struct Target
+{
+	cv::Vec3f position;
+	cv::Vec4f bb;
+};
+
 void clustering(cv::Mat const &filtered_disp)
 {
 	cv::Mat tmp;
@@ -92,12 +98,6 @@ void clustering(cv::Mat const &filtered_disp)
 	for (unsigned int i = 0; i < nbconn; ++i) {
 		bbs[i].second[0] /= bbs[i].second[1];
 	}
-
-	struct Target
-	{
-		cv::Vec3f position;
-		cv::Vec4f bb;
-	};
 
 	std::vector<Target> targets(nbconn);
 	for (unsigned int i = 0; i < nbconn; ++i) {

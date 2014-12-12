@@ -27,11 +27,14 @@ cv::Point2f toGrid (cv::Point2f const& pt,
                     float x_step, float y_step) {
     cv::Point2f newPt;
 
-    newPt.x = y_max - (pt.y-y_min) / y_step;
-    newPt.y = (pt.x-x_min) / x_step;
+    newPt.y = (y_max - (pt.y-y_min)) / y_step;
+    newPt.x = (pt.x-x_min) / x_step;
 
     return newPt;
 }
+
+#undef M_PI
+#define M_PI 3.141592654
 
 int main (int argc, const char* argv[]) {
     if (argc != 2) {
@@ -81,8 +84,8 @@ int main (int argc, const char* argv[]) {
                                                       , 0 , 0 , 0 , 1);
     kalman.measurementMatrix = (cv::Mat_<float>(2, 4) << 1 , 0, 0, 0
                                                       , 0 , 1, 0, 0);
-    cv::setIdentity(kalman.processNoiseCov, cv::Scalar::all(1e-5));
-    cv::setIdentity(kalman.measurementNoiseCov, cv::Scalar::all(1e-1));
+    cv::setIdentity(kalman.processNoiseCov, cv::Scalar::all(1));
+    cv::setIdentity(kalman.measurementNoiseCov, cv::Scalar::all(1));
     cv::setIdentity(kalman.errorCovPost, cv::Scalar::all(0.1));
 
     // Initial ROI
@@ -159,6 +162,7 @@ int main (int argc, const char* argv[]) {
         }
 
         // Initial prediction
+		observed /= observed_impacts;
         if (frame_nb == 0) {
             kalman.statePre.at<float>(0) = observed(0);
             kalman.statePre.at<float>(1) = observed(1);
@@ -168,7 +172,6 @@ int main (int argc, const char* argv[]) {
 
         // Correction
         cv::Mat corrected = kalman.correct(observed);
-        observed /= observed_impacts;
         std::cout << "pre: " << predicted << std::endl;
         std::cout << "obs: " << observed << std::endl;
 
@@ -181,12 +184,17 @@ int main (int argc, const char* argv[]) {
         cv::resize(display_grid, display_grid_large, cv::Size(600,600));
 
         // show prediction / observation
-        drawCross(toGrid(cv::Point2f(observed(0), observed(1)),
-                         x_min, y_min, x_max, y_max,
-                         x_step, y_step), cv::Scalar(255, 0, 0), 5);
-        drawCross(toGrid(predicted,
-                         x_min, y_min, x_max, y_max,
-                         x_step, y_step), cv::Scalar(0, 255, 0), 5);
+		cv::Point2f scale(600.f / nb_cells_x, 600.f / nb_cells_y);
+		cv::Point2f obsCross = toGrid(cv::Point2f(observed(0), observed(1)),
+			x_min, y_min, x_max, y_max,
+			x_step, y_step);
+		obsCross.x *= scale.x;
+		obsCross.y *= scale.y;
+		cv::Point2f predCross = toGrid(predicted, x_min, y_min, x_max, y_max, x_step, y_step);
+		predCross.x *= scale.x;
+		predCross.y *= scale.y;
+		drawCross(obsCross, cv::Scalar(255, 0, 0), 5);
+		drawCross(predCross, cv::Scalar(0, 255, 0), 5);
 
         //  show images
         cv::imshow("top view",  display_grid_large);
