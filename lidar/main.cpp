@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
 #include <cmath>
 
 #define drawCross( center, color, d )                                 \
@@ -11,6 +12,7 @@
 
 const std::string img_directory = "data/img/";
 
+// Compute the center of a box
 cv::Point2f centerBox (float x_min, float x_max,
                        float y_min, float y_max) {
     cv::Point2f center;
@@ -21,6 +23,7 @@ cv::Point2f centerBox (float x_min, float x_max,
     return center;
 }
 
+// Map a point into the grid
 cv::Point2f toGrid (cv::Point2f const& pt,
                     float x_min, float y_min,
                     float x_max, float y_max,
@@ -33,8 +36,10 @@ cv::Point2f toGrid (cv::Point2f const& pt,
     return newPt;
 }
 
+#ifdef _WIN32
 #undef M_PI
 #define M_PI 3.141592654
+#endif
 
 int main (int argc, const char* argv[]) {
     if (argc != 2) {
@@ -84,9 +89,13 @@ int main (int argc, const char* argv[]) {
                                                       , 0 , 0 , 0 , 1);
     kalman.measurementMatrix = (cv::Mat_<float>(2, 4) << 1 , 0, 0, 0
                                                       , 0 , 1, 0, 0);
-    cv::setIdentity(kalman.processNoiseCov, cv::Scalar::all(1));
     cv::setIdentity(kalman.measurementNoiseCov, cv::Scalar::all(1));
-    cv::setIdentity(kalman.errorCovPost, cv::Scalar::all(0.1));
+
+    cv::Point2f predicted = cv::Vec2f(0, 0);
+    cv::Vec2f speed = cv::Vec2f(0, 0);
+    cv::Mat_<float> observed(2, 1);
+    observed.setTo(cv::Scalar(0));
+    int observed_impacts = 0;
 
     // Initial ROI
     float x_roi_min = 4,
@@ -94,14 +103,13 @@ int main (int argc, const char* argv[]) {
           y_roi_min = 9,
           y_roi_max = 11;
 
-    // Kalman
-    cv::Point2f predicted = cv::Vec2f(0, 0);
-    cv::Vec2f speed = cv::Vec2f(0, 0);
-    cv::Mat_<float> observed(2, 1);
-    observed.setTo(cv::Scalar(0));
-    int observed_impacts = 0;
+    // For output
+    std::vector<float> speeds;
+    std::vector<int> frames;
 
     while (key != 'q' && frame_nb != nb_frames) {
+        frames.push_back(frame_nb);
+
         //  Allocation/initialization of the grid
         cv:: Mat grid = cv::Mat::zeros(cv::Size(nb_cells_x, nb_cells_y), CV_32F);
 
@@ -112,16 +120,18 @@ int main (int argc, const char* argv[]) {
         cv::Mat left_display_img;
         cv::cvtColor(left_img, left_display_img, CV_GRAY2RGB);
 
+        // Initialization
         observed_impacts = 0;
         observed.setTo(cv::Scalar(0));
 
-        // Prediction
+        // Prediction and ROI update
         if (frame_nb != 0) {
             cv::Mat prediction = kalman.predict();
             predicted = cv::Point2f(prediction.at<float>(0),
                                     prediction.at<float>(1));
-            /* speed = cv::Vec2f(prediction.at<float>(2), */
-            /*                   prediction.at<float>(3)); */
+            speed = cv::Vec2f(prediction.at<float>(2),
+                              prediction.at<float>(3));
+            speeds.push_back(cv::norm(speed));
             cv::Point2f center = centerBox(x_roi_min, x_roi_max,
                                            y_roi_min, y_roi_max);
             cv::Vec2f newCenter = predicted - center;
@@ -161,8 +171,9 @@ int main (int argc, const char* argv[]) {
             }
         }
 
+        observed /= observed_impacts;
+
         // Initial prediction
-		observed /= observed_impacts;
         if (frame_nb == 0) {
             kalman.statePre.at<float>(0) = observed(0);
             kalman.statePre.at<float>(1) = observed(1);
@@ -171,9 +182,7 @@ int main (int argc, const char* argv[]) {
         }
 
         // Correction
-        cv::Mat corrected = kalman.correct(observed);
-        std::cout << "pre: " << predicted << std::endl;
-        std::cout << "obs: " << observed << std::endl;
+        kalman.correct(observed);
 
         // prepare the display of the grid
         cv::Mat display_grid; //  to have a RGB grid for display
@@ -184,17 +193,17 @@ int main (int argc, const char* argv[]) {
         cv::resize(display_grid, display_grid_large, cv::Size(600,600));
 
         // show prediction / observation
-		cv::Point2f scale(600.f / nb_cells_x, 600.f / nb_cells_y);
-		cv::Point2f obsCross = toGrid(cv::Point2f(observed(0), observed(1)),
-			x_min, y_min, x_max, y_max,
-			x_step, y_step);
-		obsCross.x *= scale.x;
-		obsCross.y *= scale.y;
-		cv::Point2f predCross = toGrid(predicted, x_min, y_min, x_max, y_max, x_step, y_step);
-		predCross.x *= scale.x;
-		predCross.y *= scale.y;
-		drawCross(obsCross, cv::Scalar(255, 0, 0), 5);
-		drawCross(predCross, cv::Scalar(0, 255, 0), 5);
+        cv::Point2f scale(600.f / nb_cells_x, 600.f / nb_cells_y);
+        cv::Point2f obsCross = toGrid(cv::Point2f(observed(0), observed(1)),
+                                      x_min, y_min, x_max, y_max,
+                                      x_step, y_step);
+        obsCross.x *= scale.x;
+        obsCross.y *= scale.y;
+        cv::Point2f predCross = toGrid(predicted, x_min, y_min, x_max, y_max, x_step, y_step);
+        predCross.x *= scale.x;
+        predCross.y *= scale.y;
+        drawCross(obsCross, cv::Scalar(255, 0, 0), 5);
+        drawCross(predCross, cv::Scalar(0, 255, 0), 5);
 
         //  show images
         cv::imshow("top view",  display_grid_large);
@@ -204,6 +213,15 @@ int main (int argc, const char* argv[]) {
         frame_nb++;
         key = cv::waitKey();
     }
+
+    // Output speed and frame number
+    std::ofstream out_speeds("speeds.txt");
+    std::copy(speeds.begin(), speeds.end(),
+              std::ostream_iterator<float>(out_speeds, "\n"));
+
+    std::ofstream out_frames("frames.txt");
+    std::copy(frames.begin(), frames.end(),
+              std::ostream_iterator<int>(out_frames, "\n"));
 
     return 0;
 }
