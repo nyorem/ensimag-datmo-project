@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
 #include <cmath>
 
 #define drawCross( center, color, d )                                 \
@@ -101,6 +102,8 @@ int main (int argc, const char* argv[]) {
     observed.setTo(cv::Scalar(0));
     int observed_impacts = 0;
 
+	std::ofstream out_velocity("velocity.dat");
+
     while (key != 'q' && frame_nb != nb_frames) {
         //  Allocation/initialization of the grid
         cv:: Mat grid = cv::Mat::zeros(cv::Size(nb_cells_x, nb_cells_y), CV_32F);
@@ -120,8 +123,9 @@ int main (int argc, const char* argv[]) {
             cv::Mat prediction = kalman.predict();
             predicted = cv::Point2f(prediction.at<float>(0),
                                     prediction.at<float>(1));
-            /* speed = cv::Vec2f(prediction.at<float>(2), */
-            /*                   prediction.at<float>(3)); */
+            speed = cv::Vec2f(prediction.at<float>(2), prediction.at<float>(3));
+			out_velocity << frame_nb << ' ' << cv::norm(speed) << '\n';
+
             cv::Point2f center = centerBox(x_roi_min, x_roi_max,
                                            y_roi_min, y_roi_max);
             cv::Vec2f newCenter = predicted - center;
@@ -172,8 +176,8 @@ int main (int argc, const char* argv[]) {
 
         // Correction
         cv::Mat corrected = kalman.correct(observed);
-        std::cout << "pre: " << predicted << std::endl;
-        std::cout << "obs: " << observed << std::endl;
+        //std::cout << "pre: " << predicted << std::endl;
+        //std::cout << "obs: " << observed << std::endl;
 
         // prepare the display of the grid
         cv::Mat display_grid; //  to have a RGB grid for display
