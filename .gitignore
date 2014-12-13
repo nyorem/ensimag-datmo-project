@@ -4,3 +4,9 @@ build/
 
 .*.swp
 *~
+
+tex/*.aux
+tex/*.pdf
+tex/*.log
+tex/*.fls
+tex/*.fdb_latexmk
