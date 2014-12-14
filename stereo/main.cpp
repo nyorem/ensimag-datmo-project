@@ -62,6 +62,7 @@ void clustering(cv::Mat const &filtered_disp)
 	cv::Mat display;
 	tmp.convertTo(display, CV_8U);
 	cv::imshow("Erode + dilate", display);
+	cv::imwrite("erode-dilate.png", display);
 
 	cv::Mat map;
 	unsigned int nbconn = segmentDisparity(tmp, map);
@@ -126,6 +127,7 @@ void clustering(cv::Mat const &filtered_disp)
 			cv::Scalar(255, 255, 255));
 	}
 	cv::imshow("Detected targets", display);
+	cv::imwrite("detected-targets.png", display);
 	
 }
 
@@ -165,19 +167,23 @@ int main(int argc, char **argv) {
     }
     cv::Mat display_stereo_threshold_img;
     stereo_threshold_img.convertTo(display_stereo_threshold_img, CV_8U);
+	cv::imwrite("cartesian-0.2-2.5m.png", display_stereo_threshold_img);
 
     // 3.Road/obstacles segmentation in Disparity space
-    // TODO: next line segfault
 	cv::Mat v_disparity_map = v_disparity(stereo_img, MAX_DISPARITY);
 	cv::Mat display_v_disparity_map;
 	v_disparity_map.convertTo(display_v_disparity_map, CV_8U);
+	cv::imwrite("v-disparity.png", display_v_disparity_map);
 	cv::imshow("V-disparity", display_v_disparity_map);
 	
     // TODO: compute theta and Z0
 
     // Threshold
     cv::Mat v_disparity_map_threshold;
-    cv::threshold(v_disparity_map, v_disparity_map_threshold, 60, 0, cv::THRESH_TOZERO); 
+	cv::threshold(v_disparity_map, v_disparity_map_threshold, 60, 0, cv::THRESH_TOZERO);
+	cv::Mat display_v_disparity_map_threshold;
+	v_disparity_map_threshold.convertTo(display_v_disparity_map_threshold, CV_8U);
+	cv::imwrite("v-disparity-threshold.png", display_v_disparity_map_threshold);
 
     // Ransac
     std::vector<cv::Point2f> points;
@@ -193,24 +199,25 @@ int main(int argc, char **argv) {
 	float theta = atan2(line[1], line[0]);
 	std::cout << theta << '\n';
 
-    // TODO: filter disparity image
 	cv::Mat filtered_disparity = stereo_img.clone();
 	cv::Mat display_filtered_disparity;
 	for (int v = 0; v < stereo_img.rows; ++v) {
 		for (int u = 0; u < stereo_img.cols; ++u) {
 			float d = stereo_img.at<short>(v, u)/16.f;
+			// check if point is under the line
 			float dd = cv::Point2f(line[0], line[1]).cross(cv::Point2f(d, v) - cv::Point2f(line[2], line[3]));
-			if (dd < (0.0f)) {
+			if (dd > (-2.0f)) {
 				filtered_disparity.at<short>(v, u) = 0;
 			}
 		}
 	}
 	filtered_disparity.convertTo(display_filtered_disparity, CV_8U);
 	cv::imshow("Filtered disparity map", display_filtered_disparity);
+	cv::imwrite("v-disparity-segmentation.png", display_filtered_disparity);
 
 
     // 4. Clustering
-	clustering(filtered_disparity);
+	clustering(stereo_threshold_img);
 
     // Display images and wait for a key press
     cv::imshow("left image", left_img);

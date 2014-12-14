@@ -83,8 +83,8 @@ unsigned int segmentDisparity(const Mat &disparity, Mat &output)
                              Point(j, i),
                              Scalar(1),
                              NULL,
-                             cvScalarAll(10),
-                             cvScalarAll(10),
+                             cvScalarAll(0),
+                             cvScalarAll(0),
                              8+FLOODFILL_FIXED_RANGE+FLOODFILL_MASK_ONLY)>0)
                 {
                     mask2.convertTo(tmp2, CV_32SC1, k);

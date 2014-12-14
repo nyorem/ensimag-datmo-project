@@ -10,6 +10,8 @@
 \usepackage{fullpage} % Marges
 \usepackage{xspace} % Espace après macros
 \usepackage{float} % Positionnement des images
+\usepackage{subcaption} % sous-legendes
+\usepackage{units}
 
 \title{Robotics project}
 \author{BLÉRON Alexandre \& MEYRON Jocelyn}
@@ -21,11 +23,125 @@
 
 \section{Detection using stereo vision}
 \subsection{Segmentation in Cartesian Space}
+We first implemented the road detection by converting back the disparity values into 3D points and filtering all points below a certain threshold.\\
+Figure \ref{threshold-comparison} compares the filtered disparity maps for image pair 250 for different threshold values.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}{0.32\linewidth}
+\includegraphics[scale=0.25]{pic/cartesian-00m.png}
+\subcaption{$ Z < \unit[0.0]{m} $}
+\label{threshold-comparison:a}
+\end{minipage}
+\begin{minipage}{0.32\linewidth}
+\includegraphics[scale=0.25]{pic/cartesian-02m.png}
+\subcaption{$ Z < \unit[0.2]{m} $}
+\label{threshold-comparison:b}
+\end{minipage}
+\begin{minipage}{0.32\linewidth}
+\includegraphics[scale=0.25]{pic/cartesian-20m.png}
+\subcaption{$ Z < \unit[2.0]{m} $}
+\label{threshold-comparison:c}
+\end{minipage}
+\caption{Comparison of different threshold values for road/obstacles segmentation}
+\label{threshold-comparison}
+\end{figure}
+
+In figure \ref{threshold-comparison:a}, we can see that some pixels belonging to the road are not filtered. Figure \ref{threshold-comparison:b} shows reasonable results for $ Z < \unit[0.2]{m} $. As expected, figure \ref{threshold-comparison:c}, with threshold $ Z < \unit[2.0]{m} $ fails to detect low obstacles (such as the pedestrian).\\
+We can also filter pixels above a certain height. Figure \ref{threshold-height} shows the same disparity map as \ref{threshold-comparison:b} with all pixels above \unit[2.5]{m} removed.
+
+\begin{figure}[H]
+\centering
+\includegraphics[scale=0.5]{pic/cartesian-02-25m.png}
+\caption{Disparity map with all pixels outside $\left[\unit[0.2]{m}; \unit[2.0]{m} \right]$ removed.}
+\label{threshold-height}
+\end{figure}
+
+This way, only the relevant obstacles are kept in the filtered image.
+
 % Other thresholds
 
 \subsection{Segmentation in Disparity Space}
+Road/obstacle segmentation can also be done in disparity space, using the \textit{v-disparity} image (figure \ref{v-disparity}).
+
+\begin{figure}[H]
+\centering
+\begin{minipage}{0.32\linewidth}
+\centering
+\includegraphics[scale=0.5]{pic/v-disparity.png}
+\subcaption{Raw v-disparity map}
+\label{v-disparity:a}
+\end{minipage}
+\begin{minipage}{0.32\linewidth}
+\centering
+\includegraphics[scale=0.5]{pic/v-disparity-threshold.png}
+\subcaption{Denoised v-disparity map}
+\label{v-disparity:b}
+\end{minipage}
+\caption{Calculated v-disparity map for image pair 250.}
+\label{v-disparity}
+\end{figure}
+
+Figure \ref{v-disparity:b} shows the v-disparity map with values below 60 removed (set to zero). From this image, we can extract a line that represents the road surface.
+
+\begin{figure}[H]
+\centering
+\includegraphics[scale=0.5]{pic/v-disparity-labeled.png}
+\caption{Manually annotated v-disparity map. The measured line parameters are : position of the horizon line $ h_0 = 159 $, slope $ p_0 = -5.6 $ }
+\label{ransac-line}
+\end{figure}
+
+Using the line parameters, we can estimate the height $Z_0$ and pitch angle $\theta$ of the camera:
+\begin{align*}
+\theta &= -atan(\frac{v_0-h_0}{\alpha_v}) \approx 0 \\
+Z_0 &= -b\cdot\cos(\theta)\cdot p_0 \approx \unit[1.23]{m}
+\end{align*} 
+
 % h_0 and p_0 => \theta and Z_0
 % Compare with cartesian space
+
+We can filter out all the pixels that are located below the line in v-disparity space (for each entry $(u, v, d)$ in the disparity map, we get its location in v-disparity space with $(v, d)$). Figure \ref{v-disparity-comparison} shows a comparison between this method and cartesian segmentation.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}{0.45\linewidth}
+\centering
+\includegraphics[scale=0.3]{pic/v-disparity-segmentation.png}
+\subcaption{Segmentation using the v-disparity image}
+\label{v-disparity-comparison:a}
+\end{minipage}
+\begin{minipage}{0.45\linewidth}
+\centering
+\includegraphics[scale=0.3]{pic/cartesian-02m.png}
+\subcaption{Segmentation in cartesian space}
+\label{v-disparity-comparison:b}
+\end{minipage}
+\caption{Comparison of disparity space segmentation and cartesian space segmentation.}
+\label{v-disparity-comparison}
+\end{figure}
+
+The v-disparity method correctly isolates the road from the potential obstacles. It seems to reject more pixels than the cartesian method (the horizon line is higher), but this can be corrected by adjusting the rejection margin.  
+
+\subsection{Clustering}
+Before detecting potential obstacle in the image, we filter it using a morphological erosion followed by a dilatation (figure \ref{morpho-filter}).
+
+\begin{figure}[H]
+\centering
+\begin{minipage}{0.45\linewidth}
+\centering
+\includegraphics[scale=0.3]{pic/cartesian-02-25m.png}
+\subcaption{Before filtering}
+\label{morpho-filter:a}
+\end{minipage}
+\begin{minipage}{0.45\linewidth}
+\centering
+\includegraphics[scale=0.3]{pic/erode-dilate.png}
+\subcaption{After filtering (kernel size = 10)}
+\label{morpho-filter:b}
+\end{minipage}
+\caption{Pre-filtering of the segmented image. The small connected regions are removed.}
+\label{morpho-filter}
+\end{figure}
 
 \newpage
 \section{Tracking from laser scanner data}
@@ -54,7 +170,7 @@ represents the observed position and the green cross the predicted one ($
 \end{figure}
 
 The choice of the noise parameters is relatively important since if we choose,
-for the covariance matrix of the noise, a diagonal with \og high \fg values (50
+for the covariance matrix of the noise, a diagonal with "high " values (50
 for example), then the system is not able to track the ROI anymore. More precisely,
 the higher the covariance matrix is, the more difficult it is for the system to
 track the bicycle: at the beginning, the prediction is very far away from the
