@@ -206,7 +206,7 @@ int main(int argc, char **argv) {
 			float d = stereo_img.at<short>(v, u)/16.f;
 			// check if point is under the line
 			float dd = cv::Point2f(line[0], line[1]).cross(cv::Point2f(d, v) - cv::Point2f(line[2], line[3]));
-			if (dd > (-2.0f)) {
+			if (dd < (2.0f)) {
 				filtered_disparity.at<short>(v, u) = 0;
 			}
 		}
